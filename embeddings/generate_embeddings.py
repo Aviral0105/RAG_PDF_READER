@@ -30,11 +30,20 @@ def generate_embeddings_for_pdf(pdf_path, chunk_size=512, overlap=50):
     print("🔄 Generating embeddings...")
     embeddings = embedding_model.encode(chunks, show_progress_bar=True)  # numpy array [num_chunks x 384]
 
-    # 3️⃣ Create FAISS index
-    dimension = embeddings.shape[1]  # e.g., 384 for MiniLM
-    index = faiss.IndexFlatL2(dimension)  # L2 distance (Euclidean)
-    index.add(np.array(embeddings, dtype="float32"))  # add all chunk vectors
+    # 3️⃣ Create FAISS index using Euclidean distance
+    #dimension = embeddings.shape[1]  # e.g., 384 for MiniLM
+    #index = faiss.IndexFlatL2(dimension)  # L2 distance (Euclidean)
+    #index.add(np.array(embeddings, dtype="float32"))  # add all chunk vectors
+    #print(f"✅ FAISS index created with {index.ntotal} vectors.")
+    
+    # ✅ Normalize embeddings to unit length (so inner product = cosine similarity)
+    faiss.normalize_L2(embeddings)
+    dimension = embeddings.shape[1]
+    index = faiss.IndexFlatIP(dimension)  # Inner Product index
+    index.add(np.array(embeddings, dtype="float32"))  # Now it stores normalized vectors
     print(f"✅ FAISS index created with {index.ntotal} vectors.")
+
+
 
     # 4️⃣ Save FAISS index to disk
     faiss_path = "embeddings/pdf_index.faiss"
