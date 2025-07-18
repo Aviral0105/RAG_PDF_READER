@@ -1,0 +1,25 @@
+# PDF Processing
+pdfminer.six
+pymupdf
+pdfplumber
+
+# Tokenization & Chunking
+tiktoken
+
+# Embeddings & LLMs
+sentence-transformers
+openai
+
+# Vector Databases
+faiss-cpu
+chromadb
+
+# API / UI
+flask
+streamlit
+
+# Optional advanced RAG tools
+llama-index
+
+# Utility
+python-dotenv   # For API keys
