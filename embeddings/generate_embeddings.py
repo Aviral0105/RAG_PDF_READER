@@ -1,65 +1,61 @@
-import sys, os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
-import pickle
-import numpy as np
-from sentence_transformers import SentenceTransformer
-import faiss
-
-# ✅ Import Phase 1 functions
 from utils.pdf_processing import extract_text_from_pdf, clean_pdf_text, chunk_text_by_tokens
+from sentence_transformers import SentenceTransformer
+import numpy as np
+import pickle
+import faiss
+import os
 
-# ✅ Load local embedding model
-embedding_model = SentenceTransformer("all-MiniLM-L6-v2")  # 384-dim embeddings
+# ✅ Load embedding model once
+embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
 
-def generate_embeddings_for_pdf(pdf_path, chunk_size=512, overlap=50):
+def process_pdf_and_create_index():
     """
-    1. Extract -> Clean -> Chunk PDF
-    2. Generate embeddings for each chunk
-    3. Save embeddings + FAISS index + metadata
+    Phase 2:
+    - Asks for a PDF path
+    - Extracts, cleans, and chunks the text
+    - Creates embeddings & saves FAISS index + metadata
+    Returns:
+        True if indexing successful
+        None if indexing failed
     """
-    
-    # 1️⃣ Extract, Clean & Chunk text
-    print(f"📄 Processing PDF: {pdf_path}")
+
+    # ✅ 1. Ask user for PDF path
+    pdf_path = input("📂 Enter the path of your PDF: ").strip().strip('"')  # removes accidental quotes
+
+    # ✅ Validate the path
+    if not os.path.exists(pdf_path):
+        print("❌ File not found! Please check the path.")
+        return None  # ❌ return None so pipeline knows it failed
+
+    print(f"📄 Processing: {os.path.basename(pdf_path)}")
+
+    # ✅ 2. Extract text from PDF
     raw_text = extract_text_from_pdf(pdf_path, method="pymupdf")
+
+    # ✅ 3. Clean & normalize text
     cleaned_text = clean_pdf_text(raw_text)
-    chunks = chunk_text_by_tokens(cleaned_text, chunk_size, overlap)
-    print(f"✅ Total Chunks: {len(chunks)}")
 
-    # 2️⃣ Generate embeddings for all chunks
+    # ✅ 4. Split into overlapping chunks
+    chunks = chunk_text_by_tokens(cleaned_text, chunk_size=512, overlap=50)
+    print(f"✅ Extracted & split into {len(chunks)} chunks")
+
+    # ✅ 5. Generate embeddings for chunks
     print("🔄 Generating embeddings...")
-    embeddings = embedding_model.encode(chunks, show_progress_bar=True)  # numpy array [num_chunks x 384]
+    embeddings = embedding_model.encode(chunks, show_progress_bar=True)
 
-    # 3️⃣ Create FAISS index using Euclidean distance
-    #dimension = embeddings.shape[1]  # e.g., 384 for MiniLM
-    #index = faiss.IndexFlatL2(dimension)  # L2 distance (Euclidean)
-    #index.add(np.array(embeddings, dtype="float32"))  # add all chunk vectors
-    #print(f"✅ FAISS index created with {index.ntotal} vectors.")
-    
-    # ✅ Normalize embeddings to unit length (so inner product = cosine similarity)
+    # ✅ Normalize embeddings for cosine similarity search
     faiss.normalize_L2(embeddings)
+
+    # ✅ 6. Create FAISS index
     dimension = embeddings.shape[1]
-    index = faiss.IndexFlatIP(dimension)  # Inner Product index
-    index.add(np.array(embeddings, dtype="float32"))  # Now it stores normalized vectors
-    print(f"✅ FAISS index created with {index.ntotal} vectors.")
+    index = faiss.IndexFlatIP(dimension)
+    index.add(np.array(embeddings, dtype="float32"))
 
-
-
-    # 4️⃣ Save FAISS index to disk
-    faiss_path = "embeddings/pdf_index.faiss"
-    faiss.write_index(index, faiss_path)
-
-    # 5️⃣ Save chunk metadata (so we know which text belongs to each vector)
-    metadata_path = "embeddings/chunk_metadata.pkl"
-    with open(metadata_path, "wb") as f:
+    # ✅ 7. Save FAISS index & metadata
+    faiss.write_index(index, "embeddings/pdf_index.faiss")
+    with open("embeddings/chunk_metadata.pkl", "wb") as f:
         pickle.dump(chunks, f)
 
-    print(f"✅ Saved FAISS index → {faiss_path}")
-    print(f"✅ Saved chunk metadata → {metadata_path}")
-    
-    return index, chunks
+    print("✅ PDF indexed successfully! (FAISS + metadata saved)")
 
-
-if __name__ == "__main__":
-    sample_pdf = "data/Document_1.pdf"  # Put your test PDF here
-    generate_embeddings_for_pdf(sample_pdf)
+    return True  # ✅ success

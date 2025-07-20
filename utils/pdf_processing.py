@@ -70,22 +70,22 @@ def chunk_text_by_tokens(text: str, chunk_size: int = 512, overlap: int = 50):
     return chunks
 
 
-if __name__ == "__main__":
-    # 🧪 Test with a sample PDF
-    sample_pdf = "data/Document_1.pdf"  # put your PDF in data/
+# if __name__ == "__main__":
+#     # 🧪 Test with a sample PDF
+#     sample_pdf = "data/Document_1.pdf"  # put your PDF in data/
     
-    # 1️⃣ Extract text
-    raw_text = extract_text_from_pdf(sample_pdf, method="pymupdf")
-    print(f"\n[RAW TEXT SAMPLE]\n{raw_text[:500]}\n")
+#     # 1️⃣ Extract text
+#     raw_text = extract_text_from_pdf(sample_pdf, method="pymupdf")
+#     print(f"\n[RAW TEXT SAMPLE]\n{raw_text[:500]}\n")
     
-    # 2️⃣ Clean text
-    cleaned_text = clean_pdf_text(raw_text)
-    print(f"\n[CLEANED TEXT SAMPLE]\n{cleaned_text[:500]}\n")
+#     # 2️⃣ Clean text
+#     cleaned_text = clean_pdf_text(raw_text)
+#     print(f"\n[CLEANED TEXT SAMPLE]\n{cleaned_text[:500]}\n")
     
-    # 3️⃣ Chunk text
-    chunks = chunk_text_by_tokens(cleaned_text, chunk_size=512, overlap=50)
-    print(f"✅ Total Chunks: {len(chunks)}")
+#     # 3️⃣ Chunk text
+#     chunks = chunk_text_by_tokens(cleaned_text, chunk_size=512, overlap=50)
+#     print(f"✅ Total Chunks: {len(chunks)}")
     
-    # Show first 2 chunks
-    for i, chunk in enumerate(chunks[:2]):
-        print(f"\n--- Chunk {i+1} ---\n{chunk[:300]}...\n")
+#     # Show first 2 chunks
+#     for i, chunk in enumerate(chunks[:2]):
+#         print(f"\n--- Chunk {i+1} ---\n{chunk[:300]}...\n")

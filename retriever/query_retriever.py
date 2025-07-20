@@ -1,5 +1,5 @@
-import sys, os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+# import sys, os
+# sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import pickle
 import numpy as np
@@ -56,25 +56,25 @@ def retrieve_top_k_chunks(query, faiss_index, chunk_metadata, k=3):
     return retrieved_chunks
 
 
-if __name__ == "__main__":
-    # ✅ Step 1: Load FAISS & metadata
-    faiss_index, chunk_metadata = load_faiss_and_metadata()
+# if __name__ == "__main__":
+#     # ✅ Step 1: Load FAISS & metadata
+#     faiss_index, chunk_metadata = load_faiss_and_metadata()
 
-    while True:
-        # ✅ Step 2: Ask user for query
-        query = input("\n❓ Enter your query (or 'exit' to quit): ")
-        if query.lower() == "exit":
-            break
+#     while True:
+#         # ✅ Step 2: Ask user for query
+#         query = input("\n❓ Enter your query (or 'exit' to quit): ")
+#         if query.lower() == "exit":
+#             break
 
-        # ✅ Step 3: Retrieve top-3 relevant chunks
-        results = retrieve_top_k_chunks(
-            query,
-            faiss_index,
-            chunk_metadata,
-            k=3  # fixed K = 3
-        )
+#         # ✅ Step 3: Retrieve top-3 relevant chunks
+#         results = retrieve_top_k_chunks(
+#             query,
+#             faiss_index,
+#             chunk_metadata,
+#             k=3  # fixed K = 3
+#         )
 
-        # ✅ Step 4: Print results
-        print("\n🔎 Top 3 relevant chunks (using cosine similarity):\n")
-        for i, (chunk_text, sim) in enumerate(results, 1):
-            print(f"--- Result {i} (similarity={sim:.4f}) ---\n{chunk_text[:500]}\n")
+#         # ✅ Step 4: Print results
+#         print("\n🔎 Top 3 relevant chunks (using cosine similarity):\n")
+#         for i, (chunk_text, sim) in enumerate(results, 1):
+#             print(f"--- Result {i} (similarity={sim:.4f}) ---\n{chunk_text[:500]}\n")
