@@ -2,40 +2,62 @@ import os
 import pickle
 import numpy as np
 import faiss
+import fitz  # PyMuPDF for per-page text extraction
 from sentence_transformers import SentenceTransformer
-from utils.pdf_processing import extract_text_from_pdf, clean_pdf_text, chunk_text_by_tokens
+from utils.pdf_processing import clean_pdf_text, chunk_text_by_tokens
 
 # ✅ Load embedding model once
 embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
 
 def process_single_pdf(pdf_path):
     """
-    Process one PDF: extract, clean, chunk, add metadata
-    Returns a list of dicts: [{chunk: "...", source: "PDF_NAME"}]
+    Process one PDF: extract, clean, chunk per page, add metadata with page number
+    Returns a list of dicts: [{chunk, source, page}]
     """
     pdf_name = os.path.basename(pdf_path)
     print(f"📄 Processing: {pdf_name}")
 
-    # ✅ Extract & clean text
-    raw_text = extract_text_from_pdf(pdf_path, method="pymupdf")
-    cleaned_text = clean_pdf_text(raw_text)
+    all_chunks = []
 
-    # ✅ Chunk text
-    chunks = chunk_text_by_tokens(cleaned_text, chunk_size=512, overlap=50)
-    print(f"✅ Created {len(chunks)} chunks from {pdf_name}")
+    # ✅ Open PDF with PyMuPDF
+    doc = fitz.open(pdf_path)
+    total_pages = len(doc)
 
-    # ✅ Attach metadata
-    chunks_with_meta = [{"chunk": c, "source": pdf_name} for c in chunks]
-    return chunks_with_meta
+    for page_num in range(total_pages):
+        page = doc.load_page(page_num)
+        page_text = page.get_text("text")
+
+        # ✅ Clean text
+        cleaned_text = clean_pdf_text(page_text)
+
+        # ✅ Skip empty pages
+        if not cleaned_text.strip():
+            continue
+
+        # ✅ Chunk text from this page
+        chunks = chunk_text_by_tokens(cleaned_text, chunk_size=512, overlap=50)
+
+        # ✅ Attach metadata with PDF name + page number (1-based indexing)
+        for c in chunks:
+            all_chunks.append({
+                "chunk": c,
+                "source": pdf_name,
+                "page": page_num + 1
+            })
+
+    doc.close()
+    print(f"✅ Created {len(all_chunks)} chunks from {pdf_name} ({total_pages} pages)")
+
+    return all_chunks
 
 def process_multiple_pdfs_and_create_index(pdf_folder):
     """
     Process all PDFs in a given folder.
-    - Extract & chunk each PDF
+    - Extract & chunk each PDF (page by page)
     - Embed all chunks
     - Save FAISS index & metadata
     """
-    # ✅ Check if folder exists
+    # ✅ Check folder
     if not os.path.exists(pdf_folder) or not os.path.isdir(pdf_folder):
         print("❌ Folder not found!")
         return False
@@ -77,9 +99,14 @@ def process_multiple_pdfs_and_create_index(pdf_folder):
     # ✅ Save FAISS index
     faiss.write_index(index, "embeddings/pdf_index.faiss")
 
-    # ✅ Save metadata (chunk + PDF name)
+    # ✅ Save metadata (chunk + PDF name + page)
     with open("embeddings/chunk_metadata.pkl", "wb") as f:
         pickle.dump(all_chunks, f)
 
-    print("✅ Multi-PDF index created! (FAISS + metadata saved)")
+    print("✅ Multi-PDF index created with page metadata! (FAISS + metadata saved)")
     return True
+
+# # ✅ Allow running Phase 2 standalone
+# if __name__ == "__main__":
+#     folder = input("📂 Enter folder path containing PDFs: ").strip().strip('"')
+#     process_multiple_pdfs_and_create_index(folder)
