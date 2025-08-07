@@ -17,3 +17,5 @@ Thumbs.db
 .idea/
 
 #Ignore API keys and sensitive files
+app/.env
+.env 
