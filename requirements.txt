@@ -12,14 +12,24 @@ openai
 
 # Vector Databases
 faiss-cpu
-chromadb
 
 # API / UI
 flask
 streamlit
 
 # Optional advanced RAG tools
-llama-index
 
 # Utility
 python-dotenv   # For API keys
+
+# FastAPI and related packages
+fastapi
+uvicorn[standard]
+pydantic
+python-dotenv
+requests
+gunicorn
+
+# Additional dependencies for API
+aiofiles
+python-multipart

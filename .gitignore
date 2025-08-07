@@ -15,3 +15,6 @@ Thumbs.db
 # Ignore IDE configs
 .vscode/
 .idea/
+
+#Ignore API keys and sensitive files
+.env
