@@ -1,0 +1,35 @@
+# PDF Processing
+pdfminer.six
+pymupdf
+pdfplumber
+
+# Tokenization & Chunking
+tiktoken
+
+# Embeddings & LLMs
+sentence-transformers
+openai
+
+# Vector Databases
+faiss-cpu
+
+# API / UI
+flask
+streamlit
+
+# Optional advanced RAG tools
+
+# Utility
+python-dotenv   # For API keys
+
+# FastAPI and related packages
+fastapi
+uvicorn[standard]
+pydantic
+python-dotenv
+requests
+gunicorn
+
+# Additional dependencies for API
+aiofiles
+python-multipart
