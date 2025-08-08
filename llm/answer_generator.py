@@ -1,123 +1,139 @@
-"""
-llm/answer_generator.py
-
-Builds context from retrieved chunks and calls OpenAI to generate an answer.
-Also extracts clause numbers from user queries and passes them to the retriever.
-"""
-
 import re
-from typing import List, Dict, Optional
 from openai import OpenAI
-
 from retriever.query_retriever import load_faiss_and_metadata, retrieve_top_k_chunks
 
-# Initialize OpenAI client (expects OPENAI_API_KEY in env)
+# ✅ Initialize OpenAI client
 client = OpenAI()
 
-# Clause detection regex for queries (captures patterns like "clause 4.2", "Clause 5.1", or "5.1")
-_clause_query_regex = re.compile(
-    r"(?:\b[Cc]lause\b|\b[Ss]ection\b)?\s*:?\.?\s*(\d+(?:\.\d+)+)"
-)
-
-
-def extract_clause_from_query(query: str) -> Optional[str]:
+# ✅ --- Helper: Build context ---
+def build_context_from_chunks(results):
     """
-    Extract a clause number like '4.2' from a user query if present.
-    Returns the clause string or None.
+    Build context string from retrieved chunks with source & page
     """
-    if not query:
-        return None
-    m = _clause_query_regex.search(query)
-    if m:
-        return m.group(1)
-    return None
-
-
-def build_context_from_chunks(results: List[Dict]) -> str:
-    """
-    Build a concatenated context string from retrieved chunks with citation headers.
-    """
-    ctx = ""
+    context = ""
     for r in results:
-        src = r.get("source", "unknown")
-        page = r.get("page", "N/A")
-        clause = r.get("clause_number", "")
-        header = f"[From {src} | Page {page} | Clause {clause}]\n"
-        ctx += header + r.get("chunk", "") + "\n\n"
-    return ctx
+        context += f"\n[From {r['source']} (Page {r['page']})]\n{r['chunk']}\n"
+    return context
 
 
-def generate_answer_with_gpt(chat_history: List[Dict], query: str, context: str) -> str:
+# ✅ --- Helper: Detect filters from query ---
+def parse_query_filters(query, all_pdf_names):
     """
-    Calls OpenAI (chat completions) with provided context and chat history.
-    Keep this wrapper minimal to match your existing pattern.
+    Try to extract PDF name and page range from the query.
+    Returns (pdf_name, page_range) or (None, None) if not found.
     """
-    # Build the messages payload
-    messages = []
-    # system prompt can be tuned
-    messages.append({"role": "system", "content": "You are a helpful assistant that answers based on provided policy documents."})
-    # include conversation history (if any)
-    for m in chat_history:
-        messages.append(m)
-    # add the context as system or assistant content
-    if context and context.strip():
-        messages.append({"role": "system", "content": f"CONTEXT:\n{context}"})
-    # user's current query
-    messages.append({"role": "user", "content": query})
+    pdf_name = None
+    page_range = None
 
-    # Call OpenAI Chat completions (using new OpenAI client pattern)
-    resp = client.chat.completions.create(
-        model="gpt-4o-mini",  # you can change model name as desired
-        messages=messages,
-        max_tokens=512,
-        temperature=0.0
-    )
-    # Pull assistant response
-    answer = resp.choices[0].message.content
-    return answer
-
-
-def interactive_qa():
-    """
-    Interactive QA loop used by your pipeline (keeps chat_history & uses clause filtering).
-    This function is intended to be imported/used by other modules (it is unchanged in signature),
-    but retains interactive CLI behavior if someone calls it directly.
-    """
-    # load index & metadata once
-    index, metadata = load_faiss_and_metadata()
-    chat_history: List[Dict] = []
-
-    print("Interactive QA (type 'exit' to quit)")
-    while True:
-        query = input("\nEnter your question: ").strip()
-        if not query:
-            continue
-        if query.lower() in ("exit", "quit"):
+    # ✅ 1. Detect PDF name from query
+    for name in all_pdf_names:
+        short_name = name.replace(".pdf", "")
+        if short_name.lower() in query.lower():
+            pdf_name = name
             break
 
-        # Try to extract clause number from query
-        clause = extract_clause_from_query(query)
-        if clause:
-            print(f"→ Detected clause filter: {clause}")
+    # ✅ 2. Detect page numbers like "page 1" or "pages 5-10"
+    match_range = re.search(r"pages?\s+(\d+)\s*-\s*(\d+)", query, re.IGNORECASE)
+    match_single = re.search(r"page\s+(\d+)", query, re.IGNORECASE)
 
-        # Retrieve chunks (pass clause filter if detected)
-        results = retrieve_top_k_chunks(query, index, metadata, k=5, clause_number=clause, search_k=50)
+    if match_range:
+        start, end = int(match_range.group(1)), int(match_range.group(2))
+        page_range = (start, end)
+    elif match_single:
+        page = int(match_single.group(1))
+        page_range = (page, page)
 
+    return pdf_name, page_range
+
+
+# ✅ --- GPT Answer Generator ---
+def generate_answer_with_gpt(chat_history, query, context):
+    """
+    Ask GPT with retrieved context + previous chat history
+    """
+    # System prompt
+    messages = [
+        {"role": "system", "content": "You are a helpful assistant that ONLY answers using the provided context."}
+    ]
+
+    # Add chat history
+    messages.extend(chat_history)
+
+    # Add user query with context
+    messages.append({
+        "role": "user",
+        "content": f"Context:\n{context}\n\nQuestion: {query}\nAnswer using ONLY the context above."
+    })
+
+    # Call GPT
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=messages
+    )
+    return response.choices[0].message.content
+
+
+# ✅ --- Interactive Q&A ---
+def interactive_qa():
+    """
+    Phase 4: Interactive Q&A with:
+    ✅ Chat history
+    ✅ Auto-detect PDF/page filters in query
+    """
+    # Load FAISS + metadata
+    faiss_index, chunk_metadata = load_faiss_and_metadata()
+    print("\n✅ Multi-PDF QA ready! Type 'exit' to quit.\n")
+
+    # Collect available PDF names
+    all_pdf_names = list({m["source"] for m in chunk_metadata})
+    print(f"📂 Available PDFs: {', '.join(all_pdf_names)}")
+
+    chat_history = []
+
+    while True:
+        query = input("\n❓ Ask a question: ").strip()
+        if query.lower() in ["exit", "quit", "q"]:
+            print("👋 Exiting QA session.")
+            break
+
+        # ✅ Detect filters in query
+        pdf_name, page_range = parse_query_filters(query, all_pdf_names)
+        if pdf_name:
+            print(f"🎯 Detected PDF filter → {pdf_name}")
+        if page_range:
+            print(f"🎯 Detected Page filter → {page_range}")
+
+        # ✅ Retrieve top-k chunks with optional filters
+        results = retrieve_top_k_chunks(
+            query,
+            faiss_index,
+            chunk_metadata,
+            k=3,
+            pdf_name=pdf_name,
+            page_range=page_range
+        )
+
+        # ✅ Show where retrieved chunks came from
         if results:
-            sources_used = [f"{r['source']} (p.{r['page']}) [clause {r['clause_number']}]" for r in results]
+            sources_used = [f"{r['source']} (p.{r['page']})" for r in results]
             print(f"\n🔍 Retrieved from: {', '.join(sources_used)}")
         else:
-            print("\n⚠️ No relevant chunks found with the given filters.")
+            print("\n⚠ No relevant chunks found with given filters.")
 
-        # Build context & generate answer
+        # ✅ Build GPT context & generate answer
         context = build_context_from_chunks(results)
         answer = generate_answer_with_gpt(chat_history, query, context)
 
-        # Output
+        # ✅ Show GPT answer
         print("\n🤖 Answer:")
         print(answer)
         print("\n" + "-"*50)
 
-        # Save to chat history
+        # ✅ Save chat history for follow-up questions
         chat_history.append({"role": "user", "content": query})
         chat_history.append({"role": "assistant", "content": answer})
+
+
+# ✅ Run standalone
+if _name_ == "_main_":
+    interactive_qa()
