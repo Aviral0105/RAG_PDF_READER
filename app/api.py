@@ -6,7 +6,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, HttpUrl
 
 # Import the single, unified function from your RAG pipeline
-from rag_pipeline import process_api_request
+from app.rag_pipeline import process_api_request
 
 # --- FastAPI App Initialization ---
 app = FastAPI(
